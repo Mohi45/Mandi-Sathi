@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
 import Header from './components/Header';
 import Filters from './components/Filters';
 import PriceTable from './components/PriceTable';
+import PriceChart from './components/PriceChart';
 import Loader from './components/Loader';
+import InstallButton from './components/InstallButton';
+import { usePriceData } from './hooks/usePriceData';
 
 // Translations
 const translations = {
@@ -34,7 +36,19 @@ const translations = {
         modalPrice: 'Modal',
         date: 'Date',
         footer: 'Data Source: data.gov.in • Agricultural Marketing Information System',
-        footer2: 'Mandi Sathi © 2026 • Empowering Farmers'
+        footer2: 'Mandi Sathi © 2026 • Empowering Farmers',
+        // New translations
+        showTrend: 'Show Trend Chart',
+        hideTrend: 'Hide Trend Chart',
+        priceTrend: 'Price Trend',
+        totalRecords: 'Total Records',
+        avgPrice: 'Average',
+        noTrendData: 'Not enough data for trend chart',
+        installApp: 'Install App',
+        installHelp: 'How to Install',
+        iosInstructions: 'iOS Installation',
+        tapShare: 'Tap Share button',
+        tapAddToHome: 'Tap "Add to Home Screen"'
     },
     hi: {
         appTitle: 'मंडी साथी',
@@ -63,7 +77,19 @@ const translations = {
         modalPrice: 'मॉडल',
         date: 'तारीख',
         footer: 'डेटा स्रोत: data.gov.in • कृषि विपणन सूचना प्रणाली',
-        footer2: 'मंडी साथी © 2026 • किसानों को सशक्त बनाना'
+        footer2: 'मंडी साथी © 2026 • किसानों को सशक्त बनाना',
+        // New translations
+        showTrend: 'प्रवृत्ति दिखाएं',
+        hideTrend: 'प्रवृत्ति छुपाएं',
+        priceTrend: 'मूल्य प्रवृत्ति',
+        totalRecords: 'कुल रिकॉर्ड',
+        avgPrice: 'औसत',
+        noTrendData: 'प्रवृत्ति चार्ट के लिए पर्याप्त डेटा नहीं',
+        installApp: 'ऐप इंस्टॉल करें',
+        installHelp: 'कैसे इंस्टॉल करें',
+        iosInstructions: 'iOS इंस्टॉलेशन',
+        tapShare: 'शेयर बटन पर टैप करें',
+        tapAddToHome: '"होम स्क्रीन में जोड़ें" पर टैप करें'
     }
 };
 
@@ -94,9 +120,6 @@ const COMMODITIES = [
     { en: 'Guava', hi: 'अमरूद' }, { en: 'Grape', hi: 'अंगूर' }, { en: 'Apple', hi: 'सेब' }, { en: 'Orange', hi: 'संतरा' }, { en: 'Papaya', hi: 'पपीता' }, { en: 'Watermelon', hi: 'तरबूज' }
 ];
 
-const CACHE_KEY = 'mandi_sathi_cache';
-const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
-
 function App() {
     const [darkMode, setDarkMode] = useState(() => {
         const saved = localStorage.getItem('mandi_dark_mode');
@@ -110,10 +133,9 @@ function App() {
 
     const [selectedDistrict, setSelectedDistrict] = useState('');
     const [selectedCommodity, setSelectedCommodity] = useState('');
-    const [data, setData] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+    // Use custom hook for price data
+    const { data, loading, error, isOffline, loadPrices, refresh } = usePriceData();
 
     // Initialize dark mode
     useEffect(() => {
@@ -130,109 +152,17 @@ function App() {
         localStorage.setItem('mandi_language', language);
     }, [language]);
 
-    // Check online status
-    useEffect(() => {
-        const handleOnline = () => setIsOffline(false);
-        const handleOffline = () => setIsOffline(true);
+    const handleSearch = useCallback(() => {
+        loadPrices(selectedDistrict, selectedCommodity);
+    }, [loadPrices, selectedDistrict, selectedCommodity]);
 
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
+    const handleRefresh = useCallback(() => {
+        refresh(selectedDistrict, selectedCommodity);
+    }, [refresh, selectedDistrict, selectedCommodity]);
 
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, []);
-
-    // Load cached data on mount
-    useEffect(() => {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-            try {
-                const { data: cachedData, timestamp } = JSON.parse(cached);
-                if (Date.now() - timestamp < CACHE_DURATION) {
-                    setData(cachedData);
-                }
-            } catch (e) {
-                console.error('Error loading cached data:', e);
-            }
-        }
-    }, []);
-
-    // Save to cache when data changes
-    useEffect(() => {
-        if (data.length > 0) {
-            localStorage.setItem(CACHE_KEY, JSON.stringify({
-                data,
-                timestamp: Date.now()
-            }));
-        }
-    }, [data]);
-
-    const fetchPrices = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-
-        try {
-            const apiKey = import.meta.env.VITE_API_KEY;
-            const apiUrl = import.meta.env.VITE_API_URL;
-
-            if (!apiKey || !apiUrl) {
-                throw new Error('API configuration missing');
-            }
-
-            // Build query parameters
-            const params = new URLSearchParams({
-                'api-key': apiKey,
-                format: 'json',
-                'filters[state.keyword]': 'Uttar Pradesh',
-                limit: '1000'
-            });
-
-            if (selectedDistrict) {
-                params.append('filters[district.keyword]', selectedDistrict);
-            }
-            if (selectedCommodity) {
-                params.append('filters[commodity.keyword]', selectedCommodity);
-            }
-
-            const response = await axios.get(`${apiUrl}?${params.toString()}`, {
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (response.data && response.data.records) {
-                setData(response.data.records);
-            } else if (response.data && Array.isArray(response.data)) {
-                setData(response.data);
-            } else {
-                setData([]);
-            }
-        } catch (err) {
-            console.error('API Error:', err);
-            setError(err.message || 'Failed to fetch prices. Please try again.');
-            setData([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [selectedDistrict, selectedCommodity]);
-
-    const handleSearch = () => {
-        fetchPrices();
-    };
-
-    const handleRefresh = () => {
-        fetchPrices();
-    };
-
-    const toggleDarkMode = () => {
+    const toggleDarkMode = useCallback(() => {
         setDarkMode(prev => !prev);
-    };
-
-    const toggleLanguage = () => {
-        setLanguage(prev => prev === 'en' ? 'hi' : 'en');
-    };
+    }, []);
 
     // Extract unique districts and commodities from data for dropdowns
     const availableDistricts = data.length > 0
@@ -266,11 +196,16 @@ function App() {
                 translations={translations}
             />
 
-            <main className="max-w-7xl mx-auto px-4 py-6">
+            <main className="max-w-md mx-auto px-3 py-4 sm:max-w-2xl sm:px-4 sm:py-6 lg:max-w-7xl lg:px-4">
+                {/* Install Button */}
+                <div className="mb-4 flex justify-end">
+                    <InstallButton language={language} translations={translations} />
+                </div>
+
                 {/* Offline Warning */}
                 {isOffline && (
-                    <div className="mb-4 p-4 bg-yellow-100 dark:bg-yellow-900 border border-yellow-400 dark:border-yellow-700 rounded-lg flex items-center gap-2">
-                        <span className="text-yellow-800 dark:text-yellow-200">
+                    <div className="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900 border border-yellow-400 dark:border-yellow-700 rounded-lg flex items-center gap-2">
+                        <span className="text-yellow-800 dark:text-yellow-200 text-sm">
                             ⚠️ {t.offlineWarning}
                         </span>
                     </div>
@@ -278,8 +213,8 @@ function App() {
 
                 {/* Error Message */}
                 {error && (
-                    <div className="mb-4 p-4 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 rounded-lg">
-                        <p className="text-red-800 dark:text-red-200">{error}</p>
+                    <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 rounded-lg">
+                        <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
                         <button
                             onClick={handleRefresh}
                             className="mt-2 text-sm text-red-600 dark:text-red-400 underline"
@@ -307,6 +242,13 @@ function App() {
                     getCommodityName={getCommodityName}
                 />
 
+                {/* Price Trend Chart */}
+                <PriceChart
+                    data={data}
+                    language={language}
+                    translations={translations}
+                />
+
                 {/* Results */}
                 {loading ? (
                     <Loader />
@@ -315,7 +257,7 @@ function App() {
                 )}
 
                 {/* Footer */}
-                <footer className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                <footer className="mt-8 text-center text-xs sm:text-sm text-gray-500 dark:text-gray-400 px-2">
                     <p>{t.footer}</p>
                     <p className="mt-1">{t.footer2}</p>
                 </footer>
