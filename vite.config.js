@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-    base: './', // Use relative paths for GitHub Pages compatibility
+    base: '/Mandi-Sathi/', // GitHub Pages subpath
     plugins: [
         react(),
         VitePWA({
@@ -13,34 +13,34 @@ export default defineConfig({
                 name: 'Farmer Crop Price Checker',
                 short_name: 'Crop Prices',
                 description: 'Check crop prices from mandis across Uttar Pradesh',
-                start_url: './',
+                start_url: '/Mandi-Sathi/',
                 display: 'standalone',
                 background_color: '#ffffff',
                 theme_color: '#16a34a',
                 orientation: 'portrait-primary',
-                scope: './',
+                scope: '/Mandi-Sathi/',
                 lang: 'en',
                 icons: [
                     {
-                        src: './pwa-192x192.svg',
+                        src: '/Mandi-Sathi/pwa-192x192.svg',
                         sizes: '192x192',
                         type: 'image/svg+xml',
                         purpose: 'any maskable'
                     },
                     {
-                        src: './pwa-512x512.svg',
+                        src: '/Mandi-Sathi/pwa-512x512.svg',
                         sizes: '512x512',
                         type: 'image/svg+xml',
                         purpose: 'any maskable'
                     },
                     {
-                        src: './pwa-192x192.svg',
+                        src: '/Mandi-Sathi/pwa-192x192.svg',
                         sizes: '192x192',
                         type: 'image/svg+xml',
                         purpose: 'any'
                     },
                     {
-                        src: './pwa-512x512.svg',
+                        src: '/Mandi-Sathi/pwa-512x512.svg',
                         sizes: '512x512',
                         type: 'image/svg+xml',
                         purpose: 'any'
@@ -52,8 +52,8 @@ export default defineConfig({
                         name: 'Get Prices',
                         short_name: 'Prices',
                         description: 'Check crop prices',
-                        url: './?action=prices',
-                        icons: [{ src: './pwa-192x192.svg', sizes: '192x192' }]
+                        url: '/Mandi-Sathi/?action=prices',
+                        icons: [{ src: '/Mandi-Sathi/pwa-192x192.svg', sizes: '192x192' }]
                     }
                 ]
             },
