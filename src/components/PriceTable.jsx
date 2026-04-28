@@ -224,7 +224,7 @@ const PriceTable = ({ data, language, translations }) => {
                                     {formatPrice(item.modal_price)}
                                 </td>
                                 <td className="text-gray-500 dark:text-gray-400 text-sm">
-                                    {formatDate(item.arrival_date)}
+                                    {formatDate(item.date)}
                                 </td>
                             </tr>
                         ))}

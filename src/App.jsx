@@ -36,7 +36,7 @@ const translations = {
         modalPrice: 'Modal',
         date: 'Date',
         footer: 'Data Source: data.gov.in • Agricultural Marketing Information System',
-        footer2: 'Mandi Sathi © 2026 • Empowering Farmers',
+        footer2: 'Mandi Sathi © 2026 • Empowering Farmers By Safachatt Group',
         // New translations
         showTrend: 'Show Trend Chart',
         hideTrend: 'Hide Trend Chart',
