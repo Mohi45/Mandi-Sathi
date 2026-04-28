@@ -1,0 +1,35 @@
+{
+    "appId": "com.mandisathi.app",
+    "appName": "Mandi Sathi",
+    "webDir": "dist",
+    "bundledWebRuntime": false,
+    "npmClient": "npm",
+    "cordova": {
+        "preferences": {
+            "ScrollEnabled": "false",
+            "DisallowOverscroll": "true",
+            "android-minSdkVersion": "21",
+            "android-targetSdkVersion": "34"
+        }
+    },
+    "server": {
+        "androidScheme": "https",
+        "allowNavigation": [
+            "https://api.data.gov.in"
+        ]
+    },
+    "plugins": {
+        "SplashScreen": {
+            "launchShowDuration": 3000,
+            "launchAutoHide": true,
+            "backgroundColor": "#16a34a",
+            "androidSplashResourceName": "splash",
+            "androidScaleType": "CENTER_CROP",
+            "showSpinner": false
+        },
+        "StatusBar": {
+            "style": "dark",
+            "backgroundColor": "#ffffff"
+        }
+    }
+}
