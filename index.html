@@ -2,22 +2,331 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/Mandi-Sathi/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="description" content="Mandi Sathi - Check crop prices from mandis across Uttar Pradesh" />
-    <meta name="theme-color" content="#16a34a" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Crop Prices" />
-    <link rel="apple-touch-icon" href="/Mandi-Sathi/pwa-192x192.svg" />
-    <link rel="manifest" href="/Mandi-Sathi/manifest.webmanifest" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Mandi Sathi - Check crop prices from mandis across Uttar Pradesh">
+    <meta name="theme-color" content="#16a34a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Crop Prices">
     <title>Mandi Sathi - Farmer Crop Price Checker</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <!-- Header -->
+    <header class="sticky top-0 z-50 bg-white dark:bg-gray-800 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                    <svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900 dark:text-white" id="appTitle">Mandi Sathi</h1>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 hidden sm:block" id="appSubtitle">Farmer Crop
+                        Price Checker</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="langToggle"
+                    class="px-3 py-1.5 text-sm font-medium rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition-colors">
+                    हिंदी
+                </button>
+                <button id="darkModeToggle"
+                    class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                    aria-label="Toggle dark mode">
+                    <svg id="sunIcon" class="w-5 h-5 text-gray-600 hidden" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z">
+                        </path>
+                    </svg>
+                    <svg id="moonIcon" class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z">
+                        </path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-md mx-auto px-3 py-4 sm:max-w-2xl sm:px-4 sm:py-6 lg:max-w-7xl lg:px-4">
+
+        <!-- Filters Section -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <!-- District Select -->
+                <div class="relative">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z">
+                            </path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        <span id="districtLabel">District</span>
+                    </label>
+                    <div class="relative">
+                        <select id="districtSelect"
+                            class="w-full px-3 py-2.5 pr-8 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:text-white appearance-none cursor-pointer">
+                            <option value="">All Districts</option>
+                        </select>
+                        <button id="clearDistrict"
+                            class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hidden"
+                            title="Clear">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Commodity Select -->
+                <div class="relative">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        <span id="commodityLabel">Commodity</span>
+                    </label>
+                    <div class="relative">
+                        <select id="commoditySelect"
+                            class="w-full px-3 py-2.5 pr-8 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:text-white appearance-none cursor-pointer">
+                            <option value="">All Commodities</option>
+                        </select>
+                        <button id="clearCommodity"
+                            class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hidden"
+                            title="Clear">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search Button -->
+                <div class="flex items-end">
+                    <button id="searchBtn"
+                        class="w-full px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg flex items-center justify-center gap-2 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        <span id="searchBtnText">Get Prices</span>
+                    </button>
+                </div>
+
+                <!-- Refresh Button -->
+                <div class="flex items-end">
+                    <button id="refreshBtn"
+                        class="w-full px-4 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-medium rounded-lg flex items-center justify-center gap-2 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                            </path>
+                        </svg>
+                        <span id="refreshBtnText">Refresh</span>
+                    </button>
+                </div>
+
+                <!-- Clear Button -->
+                <div class="flex items-end">
+                    <button id="clearBtn"
+                        class="w-full px-4 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-medium rounded-lg flex items-center justify-center gap-2 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                            </path>
+                        </svg>
+                        <span id="clearBtnText">Clear</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Offline Warning -->
+        <div id="offlineWarning"
+            class="mb-4 p-3 bg-yellow-100 dark:bg-yellow-900 border border-yellow-400 dark:border-yellow-700 rounded-lg flex items-center gap-2 hidden">
+            <span class="text-yellow-800 dark:text-yellow-200 text-sm">⚠️ You are offline. Showing cached data.</span>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage"
+            class="mb-4 p-3 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 rounded-lg hidden">
+            <p class="text-red-800 dark:text-red-200 text-sm" id="errorText">Failed to fetch prices. Please try again.
+            </p>
+            <button id="tryAgainBtn" class="mt-2 text-sm text-red-600 dark:text-red-400 underline">Try again</button>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="flex flex-col items-center justify-center py-12 hidden">
+            <div class="relative">
+                <div class="w-16 h-16 border-4 border-gray-200 dark:border-gray-700 rounded-full"></div>
+                <div
+                    class="absolute top-0 left-0 w-16 h-16 border-4 border-green-500 rounded-full border-t-transparent animate-spin">
+                </div>
+            </div>
+            <p class="mt-4 text-gray-600 dark:text-gray-400" id="loadingText">Loading prices...</p>
+        </div>
+
+        <!-- Results Info -->
+        <div id="resultsInfo" class="mb-4 text-sm text-gray-500 dark:text-gray-400 hidden">
+            Showing <span id="resultsCount" class="font-medium text-gray-900 dark:text-white">0</span> of <span
+                id="totalCount" class="font-medium text-gray-900 dark:text-white">0</span> results
+        </div>
+
+        <!-- Search in Results -->
+        <div id="searchInResults" class="mb-4 hidden">
+            <div class="relative max-w-xs">
+                <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none"
+                    stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <input type="text" id="searchInput" placeholder="Search in results..."
+                    class="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-700 border-0 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-green-500">
+            </div>
+        </div>
+
+        <!-- Price Table -->
+        <div id="priceTableContainer" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                data-sort="commodity">
+                                <span class="inline-flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                    </svg>
+                                    <span id="commodityHeader">Commodity</span>
+                                    <svg class="w-4 h-4 ml-1 inline opacity-50 sort-icon" fill="none"
+                                        stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                                    </svg>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                data-sort="district">
+                                <span class="inline-flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z">
+                                        </path>
+                                    </svg>
+                                    <span id="districtHeader">District</span>
+                                    <svg class="w-4 h-4 ml-1 inline opacity-50 sort-icon" fill="none"
+                                        stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                                    </svg>
+                                </span>
+                            </th>
+                            <th
+                                class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                <span id="marketHeader">Market</span>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                data-sort="min_price">
+                                <span class="inline-flex items-center">
+                                    <span id="minPriceHeader">Min</span>
+                                    <svg class="w-4 h-4 ml-1 inline opacity-50 sort-icon" fill="none"
+                                        stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                                    </svg>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                data-sort="max_price">
+                                <span class="inline-flex items-center">
+                                    <span id="maxPriceHeader">Max</span>
+                                    <svg class="w-4 h-4 ml-1 inline opacity-50 sort-icon" fill="none"
+                                        stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                                    </svg>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                data-sort="modal_price">
+                                <span class="inline-flex items-center">
+                                    <span id="modalPriceHeader">Modal</span>
+                                    <svg class="w-4 h-4 ml-1 inline opacity-50 sort-icon" fill="none"
+                                        stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                                    </svg>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                                data-sort="date">
+                                <span class="inline-flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
+                                        </path>
+                                    </svg>
+                                    <span id="dateHeader">Date</span>
+                                    <svg class="w-4 h-4 ml-1 inline opacity-50 sort-icon" fill="none"
+                                        stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                                    </svg>
+                                </span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="priceTableBody" class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <!-- Data rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- No Data Message -->
+        <div id="noDataMessage" class="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-8 text-center">
+            <div class="text-gray-400 dark:text-gray-500 mb-2">
+                <svg class="w-16 h-16 mx-auto opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+            </div>
+            <p class="text-gray-600 dark:text-gray-400" id="noDataText">No data available</p>
+            <p class="text-sm text-gray-500 dark:text-gray-500 mt-1" id="noDataHint">Select a district and commodity to
+                view prices</p>
+        </div>
+
+        <!-- No Results Match -->
+        <div id="noResultsMessage" class="p-8 text-center text-gray-500 dark:text-gray-400 hidden">
+            No results match your search
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-8">
+        <div class="max-w-7xl mx-auto px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+            <p id="footerText">Data Source: data.gov.in • Agricultural Marketing Information System</p>
+            <p class="mt-1 text-xs" id="footerText2">Mandi Sathi © 2026 • Empowering Farmers By Safachatt Group</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
 </body>
 
 </html>
