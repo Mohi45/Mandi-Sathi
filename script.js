@@ -8,14 +8,66 @@
 // Configuration
 // ============================================
 const CONFIG = {
-    API_URL: 'https://api.data.gov.in/cb0d6b11f40f4a73b4f5c3c8a4e3d9e0',
+    API_URL: 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070',
     API_BASE: 'https://api.data.gov.in',
+    CORS_PROXY: 'https://api.allorigins.win/raw?url=',
     STATE: 'Uttar Pradesh',
     STATE_CODE: 'UP',
     PAGE_SIZE: 1000,
     CACHE_KEY: 'mandi_sathi_cache',
     CACHE_DURATION: 30 * 60 * 1000, // 30 minutes
 };
+
+// ============================================
+// Fallback Data (for when API fails)
+// ============================================
+const FALLBACK_DATA = [
+    {
+        district: 'Agra',
+        market: 'Agra',
+        commodity: 'Wheat',
+        min_price: '2200',
+        max_price: '2400',
+        modal_price: '2300',
+        date: '2026-04-28'
+    },
+    {
+        district: 'Kanpur',
+        market: 'Kanpur',
+        commodity: 'Rice',
+        min_price: '3500',
+        max_price: '3800',
+        modal_price: '3650',
+        date: '2026-04-28'
+    },
+    {
+        district: 'Lucknow',
+        market: 'Lucknow',
+        commodity: 'Potato',
+        min_price: '800',
+        max_price: '1200',
+        modal_price: '1000',
+        date: '2026-04-28'
+    },
+    {
+        district: 'Varanasi',
+        market: 'Varanasi',
+        commodity: 'Tomato',
+        min_price: '1500',
+        max_price: '2000',
+        modal_price: '1750',
+        date: '2026-04-28'
+    },
+    {
+        district: 'Meerut',
+        market: 'Meerut',
+        commodity: 'Onion',
+        min_price: '1800',
+        max_price: '2200',
+        modal_price: '2000',
+        date: '2026-04-28'
+    }
+];
 
 // ============================================
 // Translations
@@ -99,6 +151,7 @@ const state = {
     isDarkMode: false,
     language: 'en',
     isOnline: navigator.onLine,
+    usingFallback: false,
 };
 
 // ============================================
@@ -131,6 +184,7 @@ const elements = {
 
     // Status
     offlineWarning: document.getElementById('offlineWarning'),
+    fallbackWarning: document.getElementById('fallbackWarning'),
     errorMessage: document.getElementById('errorMessage'),
     errorText: document.getElementById('errorText'),
     tryAgainBtn: document.getElementById('tryAgainBtn'),
@@ -245,35 +299,52 @@ async function fetchPrices() {
         return cache;
     }
 
-    // Using the actual data.gov.in API
-    const url = `${CONFIG.API_BASE}/cb0d6b11f40f4a73b4f5c3c8a4e3d9e0/api/market-data?state=${encodeURIComponent(CONFIG.STATE)}&format=json&fields=district,market,commodity,min_price,max_price,modal_price,arrival_date&size=${CONFIG.PAGE_SIZE}`;
+    console.log('Fetching fresh data from API...');
+
+    // Using the actual data.gov.in API with CORS proxy
+    const apiUrl = `${CONFIG.API_URL}?api-key=579b464db66ec23bdd000001d7401247e8814ec9754e48d894673d42&format=json&filters[state.keyword]=${encodeURIComponent(CONFIG.STATE)}&limit=${CONFIG.PAGE_SIZE}`;
+    const proxyUrl = CONFIG.CORS_PROXY + encodeURIComponent(apiUrl);
 
     try {
-        const response = await fetch(url, {
+        console.log('Making API request to:', proxyUrl);
+        const response = await fetch(proxyUrl, {
+            method: 'GET',
             headers: {
                 'Accept': 'application/json',
             }
         });
 
+        console.log('API response status:', response.status);
+
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
+        console.log('API response data:', data);
 
-        if (data && data.records) {
+        if (data && data.records && Array.isArray(data.records)) {
             const processedData = data.records.map(record => ({
                 ...record,
                 date: record.arrival_date || record.date
             }));
+            console.log('Processed data length:', processedData.length);
             setCache(processedData);
+            state.usingFallback = false;
             return processedData;
         }
 
-        return [];
+        console.warn('No records found in API response, using fallback data');
+        state.usingFallback = true;
+        return FALLBACK_DATA;
+
     } catch (error) {
-        console.error('Failed to fetch prices:', error);
-        throw error;
+        console.error('Failed to fetch prices from API:', error);
+        console.log('Using fallback data due to API failure');
+        state.usingFallback = true;
+
+        // Return fallback data instead of throwing
+        return FALLBACK_DATA;
     }
 }
 
@@ -530,6 +601,9 @@ async function handleSearch() {
         filterPrices();
         renderFilters();
         renderTable();
+        
+        // Show fallback warning if using sample data
+        elements.fallbackWarning.classList.toggle('hidden', !state.usingFallback);
     } catch (error) {
         showError(translations[state.language].error);
     } finally {
@@ -539,6 +613,7 @@ async function handleSearch() {
 
 function handleRefresh() {
     localStorage.removeItem(CONFIG.CACHE_KEY);
+    state.usingFallback = false;
     handleSearch();
 }
 
