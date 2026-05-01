@@ -10,10 +10,10 @@
 const CONFIG = {
     API_URL: 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070',
     API_BASE: 'https://api.data.gov.in',
-    CORS_PROXY: 'https://api.allorigins.win/raw?url=',
+    CORS_PROXY: 'https://api.allorigins.win/get?url=',
     STATE: 'Uttar Pradesh',
     STATE_CODE: 'UP',
-    PAGE_SIZE: 1000,
+    PAGE_SIZE: 500,
     CACHE_KEY: 'mandi_sathi_cache',
     CACHE_DURATION: 30 * 60 * 1000, // 30 minutes
 };
@@ -148,6 +148,7 @@ const state = {
     sortDirection: 'desc',
     isLoading: false,
     error: null,
+    apiError: null,
     isDarkMode: false,
     language: 'en',
     isOnline: navigator.onLine,
@@ -292,6 +293,35 @@ function setCache(data) {
 // ============================================
 // API Functions
 // ============================================
+async function fetchJsonThroughProxy(proxyBase, apiUrl, parseMode = 'auto') {
+    const proxyUrl = proxyBase + encodeURIComponent(apiUrl);
+    const response = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP error from proxy ${proxyBase}: ${response.status} ${response.statusText}`);
+    }
+
+    const text = await response.text();
+    if (!text) {
+        throw new Error(`Empty response from proxy ${proxyBase}`);
+    }
+
+    if (parseMode === 'allorigins-get') {
+        const wrapper = JSON.parse(text);
+        if (wrapper && typeof wrapper.contents === 'string') {
+            return JSON.parse(wrapper.contents);
+        }
+        throw new Error('Invalid allorigins response');
+    }
+
+    return JSON.parse(text);
+}
+
 async function fetchPrices() {
     const cache = getCache();
     if (cache) {
@@ -300,52 +330,56 @@ async function fetchPrices() {
     }
 
     console.log('Fetching fresh data from API...');
+    state.apiError = null;
 
-    // Using the actual data.gov.in API with CORS proxy
-    const apiUrl = `${CONFIG.API_URL}?api-key=579b464db66ec23bdd000001d7401247e8814ec9754e48d894673d42&format=json&filters[state.keyword]=${encodeURIComponent(CONFIG.STATE)}&limit=${CONFIG.PAGE_SIZE}`;
-    const proxyUrl = CONFIG.CORS_PROXY + encodeURIComponent(apiUrl);
+    let apiUrl = `${CONFIG.API_URL}?api-key=579b464db66ec23bdd000001d7401247e8814ec9754e48d894673d42&format=json&limit=${CONFIG.PAGE_SIZE}`;
+    apiUrl += `&filters[state.keyword]=${encodeURIComponent(CONFIG.STATE)}`;
 
-    try {
-        console.log('Making API request to:', proxyUrl);
-        const response = await fetch(proxyUrl, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-            }
-        });
-
-        console.log('API response status:', response.status);
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        console.log('API response data:', data);
-
-        if (data && data.records && Array.isArray(data.records)) {
-            const processedData = data.records.map(record => ({
-                ...record,
-                date: record.arrival_date || record.date
-            }));
-            console.log('Processed data length:', processedData.length);
-            setCache(processedData);
-            state.usingFallback = false;
-            return processedData;
-        }
-
-        console.warn('No records found in API response, using fallback data');
-        state.usingFallback = true;
-        return FALLBACK_DATA;
-
-    } catch (error) {
-        console.error('Failed to fetch prices from API:', error);
-        console.log('Using fallback data due to API failure');
-        state.usingFallback = true;
-
-        // Return fallback data instead of throwing
-        return FALLBACK_DATA;
+    if (state.selectedDistrict) {
+        const selectedDistrict = encodeURIComponent(state.selectedDistrict);
+        apiUrl += `&filters[district]=${selectedDistrict}`;
     }
+
+    if (state.selectedCommodity) {
+        const selectedCommodity = encodeURIComponent(state.selectedCommodity);
+        apiUrl += `&filters[commodity]=${selectedCommodity}`;
+    }
+
+    apiUrl += '&fields=district,market,commodity,min_price,max_price,modal_price,arrival_date';
+
+    const proxyServices = [
+        { base: 'https://api.allorigins.win/get?url=', mode: 'allorigins-get' },
+        { base: 'https://api.allorigins.win/raw?url=', mode: 'json' },
+        { base: 'https://api.codetabs.com/v1/proxy?quest=', mode: 'json' }
+    ];
+
+    let lastError = null;
+
+    for (const proxy of proxyServices) {
+        try {
+            console.log('Trying proxy:', proxy.base);
+            const data = await fetchJsonThroughProxy(proxy.base, apiUrl, proxy.mode);
+            if (data && Array.isArray(data.records)) {
+                const processedData = data.records.map(record => ({
+                    ...record,
+                    date: record.arrival_date || record.date
+                }));
+                console.log('Processed data length:', processedData.length);
+                setCache(processedData);
+                state.usingFallback = false;
+                return processedData;
+            }
+            console.warn('Proxy returned no records:', proxy.base);
+        } catch (error) {
+            console.warn('Proxy failed:', proxy.base, error.message);
+            lastError = error;
+        }
+    }
+
+    console.error('All proxies failed. Using fallback data. Last error:', lastError);
+    state.usingFallback = true;
+    state.apiError = lastError ? lastError.message : 'Live data unavailable';
+    return FALLBACK_DATA;
 }
 
 // ============================================
@@ -601,9 +635,9 @@ async function handleSearch() {
         filterPrices();
         renderFilters();
         renderTable();
-        
-        // Show fallback warning if using sample data
+
         elements.fallbackWarning.classList.toggle('hidden', !state.usingFallback);
+        elements.errorMessage.classList.add('hidden');
     } catch (error) {
         showError(translations[state.language].error);
     } finally {
