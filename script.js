@@ -83,6 +83,7 @@ const translations = {
         clear: 'Clear',
         loading: 'Loading prices...',
         noData: 'No data available',
+        noRecentData: 'No recent data available',
         noDataHint: 'Select a district and commodity to view prices',
         noResults: 'No results match your search',
         showing: 'Showing',
@@ -112,6 +113,7 @@ const translations = {
         clear: 'साफ करें',
         loading: 'भाव लोड हो रहे हैं...',
         noData: 'कोई डेटा उपलब्ध नहीं',
+        noRecentData: 'हाल में कोई डेटा उपलब्ध नहीं',
         noDataHint: 'भाव देखने के लिए जिला और फसल चुनें',
         noResults: 'आपकी खोज से कोई परिणाम नहीं मिला',
         showing: 'दिखा रहे हैं',
@@ -153,6 +155,7 @@ const state = {
     language: 'en',
     isOnline: navigator.onLine,
     usingFallback: false,
+    lastUpdated: null,
 };
 
 // ============================================
@@ -198,6 +201,7 @@ const elements = {
     totalCount: document.getElementById('totalCount'),
     searchInResults: document.getElementById('searchInResults'),
     searchInput: document.getElementById('searchInput'),
+    lastUpdatedText: document.getElementById('lastUpdatedText'),
 
     // Table
     priceTableContainer: document.getElementById('priceTableContainer'),
@@ -233,19 +237,26 @@ function formatPrice(price) {
     return '₹' + num.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 }
 
-function formatDate(dateStr) {
-    if (!dateStr) return '-';
-    try {
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) return dateStr;
-        return date.toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-        });
-    } catch {
-        return dateStr;
+function parseArrivalDate(dateStr) {
+    if (!dateStr) return null;
+    if (typeof dateStr !== 'string') dateStr = String(dateStr);
+    const dmy = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (dmy) {
+        const [, day, month, year] = dmy;
+        return new Date(`${year}-${month}-${day}T00:00:00`);
     }
+    const iso = new Date(dateStr);
+    return Number.isNaN(iso.getTime()) ? null : iso;
+}
+
+function formatDate(dateStr) {
+    const date = parseArrivalDate(dateStr);
+    if (!date) return dateStr || '-';
+    return date.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
 }
 
 function debounce(func, wait) {
@@ -263,14 +274,15 @@ function debounce(func, wait) {
 // ============================================
 // Cache Functions
 // ============================================
-function getCache() {
+function getCache(cacheKey) {
     try {
-        const cached = localStorage.getItem(CONFIG.CACHE_KEY);
+        const storageKey = `${CONFIG.CACHE_KEY}:${btoa(cacheKey)}`;
+        const cached = localStorage.getItem(storageKey);
         if (!cached) return null;
 
         const { data, timestamp } = JSON.parse(cached);
         if (Date.now() - timestamp > CONFIG.CACHE_DURATION) {
-            localStorage.removeItem(CONFIG.CACHE_KEY);
+            localStorage.removeItem(storageKey);
             return null;
         }
         return data;
@@ -279,15 +291,34 @@ function getCache() {
     }
 }
 
-function setCache(data) {
+function setCache(cacheKey, data) {
     try {
-        localStorage.setItem(CONFIG.CACHE_KEY, JSON.stringify({
+        const storageKey = `${CONFIG.CACHE_KEY}:${btoa(cacheKey)}`;
+        localStorage.setItem(storageKey, JSON.stringify({
             data,
             timestamp: Date.now()
         }));
     } catch (e) {
         console.warn('Failed to cache data:', e);
     }
+}
+
+function getAnyCache() {
+    try {
+        const prefix = `${CONFIG.CACHE_KEY}:`;
+        for (const key of Object.keys(localStorage)) {
+            if (!key.startsWith(prefix)) continue;
+            const cached = JSON.parse(localStorage.getItem(key));
+            if (!cached || !cached.timestamp || Date.now() - cached.timestamp > CONFIG.CACHE_DURATION) {
+                localStorage.removeItem(key);
+                continue;
+            }
+            return cached.data;
+        }
+    } catch {
+        return null;
+    }
+    return null;
 }
 
 // ============================================
@@ -322,31 +353,21 @@ async function fetchJsonThroughProxy(proxyBase, apiUrl, parseMode = 'auto') {
     return JSON.parse(text);
 }
 
-async function fetchPrices() {
-    const cache = getCache();
-    if (cache) {
-        console.log('Using cached data');
-        return cache;
-    }
-
-    console.log('Fetching fresh data from API...');
-    state.apiError = null;
-
+function buildApiUrl(filters = {}) {
     let apiUrl = `${CONFIG.API_URL}?api-key=579b464db66ec23bdd000001d7401247e8814ec9754e48d894673d42&format=json&limit=${CONFIG.PAGE_SIZE}`;
     apiUrl += `&filters[state.keyword]=${encodeURIComponent(CONFIG.STATE)}`;
-
-    if (state.selectedDistrict) {
-        const selectedDistrict = encodeURIComponent(state.selectedDistrict);
-        apiUrl += `&filters[district]=${selectedDistrict}`;
+    if (filters.district) {
+        apiUrl += `&filters[district]=${encodeURIComponent(filters.district)}`;
     }
-
-    if (state.selectedCommodity) {
-        const selectedCommodity = encodeURIComponent(state.selectedCommodity);
-        apiUrl += `&filters[commodity]=${selectedCommodity}`;
+    if (filters.commodity) {
+        apiUrl += `&filters[commodity]=${encodeURIComponent(filters.commodity)}`;
     }
-
+    apiUrl += '&sort[arrival_date]=desc';
     apiUrl += '&fields=district,market,commodity,min_price,max_price,modal_price,arrival_date';
+    return apiUrl;
+}
 
+async function fetchRecordsWithProxy(apiUrl) {
     const proxyServices = [
         { base: 'https://api.allorigins.win/get?url=', mode: 'allorigins-get' },
         { base: 'https://api.allorigins.win/raw?url=', mode: 'json' },
@@ -354,32 +375,88 @@ async function fetchPrices() {
     ];
 
     let lastError = null;
-
     for (const proxy of proxyServices) {
         try {
             console.log('Trying proxy:', proxy.base);
             const data = await fetchJsonThroughProxy(proxy.base, apiUrl, proxy.mode);
             if (data && Array.isArray(data.records)) {
-                const processedData = data.records.map(record => ({
-                    ...record,
-                    date: record.arrival_date || record.date
-                }));
-                console.log('Processed data length:', processedData.length);
-                setCache(processedData);
-                state.usingFallback = false;
-                return processedData;
+                return data.records;
             }
-            console.warn('Proxy returned no records:', proxy.base);
+            if (data && data.records == null) {
+                throw new Error('Unexpected API response format');
+            }
+            return [];
         } catch (error) {
             console.warn('Proxy failed:', proxy.base, error.message);
             lastError = error;
         }
     }
+    throw lastError || new Error('Unable to fetch records from any proxy');
+}
 
-    console.error('All proxies failed. Using fallback data. Last error:', lastError);
-    state.usingFallback = true;
-    state.apiError = lastError ? lastError.message : 'Live data unavailable';
-    return FALLBACK_DATA;
+async function fetchPrices() {
+    const primaryUrl = buildApiUrl({
+        district: state.selectedDistrict,
+        commodity: state.selectedCommodity
+    });
+    const cache = getCache(primaryUrl);
+    if (cache) {
+        console.log('Using cached data');
+        state.usingFallback = false;
+        return cache;
+    }
+
+    console.log('Fetching fresh data from API...');
+    state.apiError = null;
+    state.lastUpdated = null;
+
+    try {
+        let records = await fetchRecordsWithProxy(primaryUrl);
+        let queryUrl = primaryUrl;
+
+        if (!records.length && state.selectedDistrict) {
+            const broadUrl = buildApiUrl({
+                commodity: state.selectedCommodity
+            });
+            console.log('No district-level records, retrying state-level query');
+            records = await fetchRecordsWithProxy(broadUrl);
+            queryUrl = broadUrl;
+        }
+
+        if (!records.length) {
+            state.usingFallback = false;
+            return [];
+        }
+
+        const processedData = records
+            .map(record => ({
+                ...record,
+                date: record.arrival_date || record.date,
+                parsedDate: parseArrivalDate(record.arrival_date || record.date)
+            }))
+            .sort((a, b) => {
+                const aDate = a.parsedDate || new Date(0);
+                const bDate = b.parsedDate || new Date(0);
+                return bDate - aDate;
+            });
+
+        if (processedData.length) {
+            state.lastUpdated = processedData[0].parsedDate || parseArrivalDate(processedData[0].date);
+        }
+
+        setCache(queryUrl, processedData);
+        state.usingFallback = false;
+        return processedData;
+    } catch (error) {
+        console.error('All proxies failed. Using fallback data. Last error:', error);
+        state.usingFallback = true;
+        state.apiError = error ? error.message : 'Live data unavailable';
+        return FALLBACK_DATA.map(record => ({
+            ...record,
+            date: record.arrival_date || record.date,
+            parsedDate: parseArrivalDate(record.arrival_date || record.date)
+        }));
+    }
 }
 
 // ============================================
@@ -438,8 +515,8 @@ function filterPrices() {
             aVal = parseFloat(aVal) || 0;
             bVal = parseFloat(bVal) || 0;
         } else if (state.sortColumn === 'date') {
-            aVal = new Date(aVal) || new Date(0);
-            bVal = new Date(bVal) || new Date(0);
+            aVal = parseArrivalDate(aVal) || new Date(0);
+            bVal = parseArrivalDate(bVal) || new Date(0);
         } else {
             aVal = (aVal || '').toString().toLowerCase();
             bVal = (bVal || '').toString().toLowerCase();
@@ -494,6 +571,7 @@ function renderTable() {
         elements.priceTableContainer.classList.add('hidden');
         elements.resultsInfo.classList.add('hidden');
         elements.searchInResults.classList.add('hidden');
+        elements.noDataText.textContent = state.selectedDistrict || state.selectedCommodity ? t.noRecentData : t.noData;
         return;
     }
 
@@ -502,14 +580,15 @@ function renderTable() {
     elements.resultsInfo.classList.remove('hidden');
     elements.searchInResults.classList.remove('hidden');
 
-    // Update results count
+    // Update results count and last updated tag
     elements.resultsCount.textContent = state.filteredPrices.length;
     elements.totalCount.textContent = state.prices.length;
+    elements.lastUpdatedText.textContent = state.lastUpdated ? formatDate(state.lastUpdated.toISOString()) : '-';
 
-    // Render rows
     state.filteredPrices.forEach((price, index) => {
         const row = document.createElement('tr');
-        row.className = 'hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors';
+        const rowClass = index === 0 ? 'bg-green-50 dark:bg-green-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700';
+        row.className = `${rowClass} transition-colors`;
         row.innerHTML = `
             <td class="px-4 py-3 whitespace-nowrap">
                 <span class="font-medium text-gray-900 dark:text-white">${price.commodity || '-'}</span>
@@ -715,8 +794,8 @@ function handleOnlineStatus() {
     elements.offlineWarning.classList.toggle('hidden', state.isOnline);
 
     if (!state.isOnline && state.prices.length === 0) {
-        // Try to load from cache when going offline
-        const cache = getCache();
+        // Try to load from any cached request when going offline
+        const cache = getAnyCache();
         if (cache) {
             state.prices = cache;
             processData(state.prices);
